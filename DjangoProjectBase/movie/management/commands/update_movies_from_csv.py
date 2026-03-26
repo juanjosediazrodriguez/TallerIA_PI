@@ -40,5 +40,6 @@ class Command(BaseCommand):
                 except Exception as e:
                     self.stderr.write(f"Failed to update {title}: {str(e)}")
 
+
         # ✅ Al finalizar, muestra cuántas películas se actualizaron
         self.stdout.write(self.style.SUCCESS(f"Finished updating {updated_count} movies from CSV."))
