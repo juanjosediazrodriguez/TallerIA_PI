@@ -7,6 +7,10 @@ import matplotlib.pyplot as plt
 import matplotlib
 import io
 import urllib, base64
+import os
+import numpy as np
+from openai import OpenAI
+from dotenv import load_dotenv
 
 def home(request):
     #return HttpResponse('<h1>Welcome to Home Page</h1>')
@@ -105,6 +109,48 @@ def statistics_view(request):
     genre_graphic = generate_bar_chart(movie_counts_by_genre, 'Genre', 'Number of movies')
 
     return render(request, 'statistics.html', {'year_graphic': year_graphic, 'genre_graphic': genre_graphic})
+
+
+def recommend(request):
+    recommended_movie = None
+    similarity_score = None
+    prompt = None
+    error = None
+
+    if request.method == 'POST':
+        prompt = request.POST.get('prompt', '').strip()
+        if prompt:
+            try:
+                load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', 'openAI.env'))
+                client = OpenAI(api_key=os.environ.get('openai_apikey'))
+
+                response = client.embeddings.create(
+                    input=[prompt],
+                    model="text-embedding-3-small"
+                )
+                prompt_emb = np.array(response.data[0].embedding, dtype=np.float32)
+
+                best_movie = None
+                max_similarity = -1
+
+                for movie in Movie.objects.exclude(emb__isnull=True):
+                    movie_emb = np.frombuffer(movie.emb, dtype=np.float32)
+                    sim = np.dot(prompt_emb, movie_emb) / (np.linalg.norm(prompt_emb) * np.linalg.norm(movie_emb))
+                    if sim > max_similarity:
+                        max_similarity = sim
+                        best_movie = movie
+
+                recommended_movie = best_movie
+                similarity_score = round(float(max_similarity), 4)
+            except Exception as e:
+                error = str(e)
+
+    return render(request, 'recommend.html', {
+        'prompt': prompt,
+        'recommended_movie': recommended_movie,
+        'similarity_score': similarity_score,
+        'error': error,
+    })
 
 
 def generate_bar_chart(data, xlabel, ylabel):
